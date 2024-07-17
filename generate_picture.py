@@ -95,5 +95,5 @@ def process_image(image_path, model_path, noise_level=25):
 # Example usage
 if __name__ == "__main__":
     image_path = "D:\Dataset\DIV2K_train_HR\\0010.png"
-    model_path = "mynet.pth"
+    model_path = "DnCNN.pth"
     process_image(image_path, model_path)

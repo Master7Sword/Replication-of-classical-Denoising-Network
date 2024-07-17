@@ -2,6 +2,7 @@ import os
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
+from torch.autograd import Variable
 from torchvision import transforms # 用于转Tensor
 from my_net import mynet
 from utils import *
@@ -32,7 +33,7 @@ def main():
     lr = 1e-3
     epochs = 100
     batch_size = 16
-    noiseL = 25
+    train_noises = [0,15,75]
 
     # Load training set
     print("loading dataset...\n")
@@ -44,9 +45,10 @@ def main():
     # Load validation set
     val_img_dir = "D:\Dataset\BSDS\BSDS500\images\\val\data"
     val_set = myDataset(val_img_dir, transform=transform)
+    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
     # Build Model
-    net = mynet(channels = 3)
+    net = mynet()
     net.apply(weights_init_kaiming)
     criterion = nn.MSELoss()    
 
@@ -63,56 +65,57 @@ def main():
     # Train
     for epoch in range(epochs):
         epoch_loss = 0.0
-        for i, data in enumerate(train_loader, 0):
-            model.train()
-            model.zero_grad()
-            optimizer.zero_grad()
-            img_train = data.to(device)
+        for i, data in enumerate(train_loader, 0): # 多加个 0 可以获得迭代的索引
+            for int_noise_sigma in train_noises:
+                model.train()
+                model.zero_grad()
+                optimizer.zero_grad()
 
-            noise = torch.FloatTensor(img_train.size()).normal_(mean=0, std = noiseL/255.).to(device)
+                noise_sigma = int_noise_sigma / 255
+                new_images = add_batch_noise(data,noise_sigma)
+                noise_sigma = torch.FloatTensor(np.array([noise_sigma for idx in range(new_images.shape[0])]))
 
-            imgn_train = img_train + noise
+                new_images = new_images.cuda()
+                noise_sigma = Variable(noise_sigma).cuda()
 
-            out_train = model(imgn_train)
-            loss = criterion(out_train, img_train) 
-            epoch_loss += loss.item()
-            loss.backward()
-            optimizer.step()
+                out_train = model(new_images, noise_sigma)
+                loss = criterion(out_train, data.to(device)) 
+                epoch_loss += loss.item()
+                loss.backward()
+                optimizer.step()
 
-            # Evaluation
-            model.eval()
-            psnr_train = batch_PSNR(out_train, img_train, 1.)
-            print("[epoch %d][%d/%d] loss: %.4f PSNR_train:  %.4f" % (epoch+1, i+1, len(train_loader), loss.item(), psnr_train))
-        
+                # Evaluation
+                model.eval()
+                psnr_train = batch_PSNR(out_train, data.to(device), 1.)
+                print("[epoch %d][%d/%d] [Noise_Sigma: %d]  loss: %.4f PSNR_train: %.4f" % (epoch+1, i+1, len(train_loader),int_noise_sigma, loss.item(), psnr_train))
+            
         epoch_loss /= len(train_loader)
         scheduler.step(epoch_loss)
 
         # Validate
+        val_noises = [0,30,60]
         psnr_val = 0
+        count = 0
         model.eval()
         with torch.no_grad():
-            for k in range(len(val_set)):
-                # Get the image from the dataset
-                img_val = val_set[k].to(device)
-                
-                # Add a batch dimension
-                img_val = torch.unsqueeze(img_val, 0)
-                
-                # Add noise
-                noise = torch.FloatTensor(img_val.size()).normal_(mean=0, std=noiseL/255.).to(device)
-                imgn_val = img_val + noise
-                
-                # Forward pass
-                out_val = model(imgn_val)
-                
-                # Calculate PSNR
-                psnr_val += batch_PSNR(out_val, img_val, 1.)
-                
-        psnr_val /= len(val_set)
-        print("\n[epoch %d] PSNR_val: %.4f" % (epoch+1, psnr_val))
-    
-    torch.save(model.state_dict(), 'mynet.pth')
+            for i, val_data in enumerate(val_loader,):
+                for val_noise in val_noises:
+                    
+                    noise_sigma = val_noise / 255
+                    new_images = add_batch_noise(val_data, noise_sigma)
+                    noise_sigma = torch.FloatTensor(np.array([noise_sigma for idx in range(new_images.shape[0])]))
+                    new_images = new_images.cuda()
+                    noise_sigma = Variable(noise_sigma).cuda()
+                    
+                    out_val = model(new_images, noise_sigma)
+                    
+                    psnr_val += batch_PSNR(out_val, val_data, 1.)   
+                    count += 1
 
+        psnr_val /= count
+        print("\n[epoch %d] PSNR_val: %.4f\n" % (epoch+1, psnr_val))
+    
+    torch.save(model.state_dict(), 'FFDNet.pth')
 
 
 if __name__ == "__main__":
