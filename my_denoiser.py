@@ -46,13 +46,13 @@ def main():
     val_set = myDataset(val_img_dir, transform=transform)
 
     # Build Model
-    net = mynet(channels = 3)
+    net = mynet()
     net.apply(weights_init_kaiming)
     criterion = nn.MSELoss()    
 
     # GPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device_ids = [0]
+    device_ids = [0, 1]
     model = nn.DataParallel(net,device_ids=device_ids).cuda()
     criterion.cuda()
 
