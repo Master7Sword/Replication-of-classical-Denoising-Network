@@ -4,23 +4,15 @@ import utils
 
 # 总参数量75456
 class mynet(nn.Module):
-<<<<<<< HEAD:DnCNN/my_net.py
     def __init__(self, channels, num_layers = 17):
-=======
-    def __init__(self, num_layers = 10):
->>>>>>> d9f387959f8e86f97649820f3cd603c4ec0b7fe9:my_net.py
         super(mynet, self).__init__()
         
         kernel_size = 3
         padding = 1
-<<<<<<< HEAD:DnCNN/my_net.py
-        features = 64
-=======
         downsampled_channels = 15
         output_features = 12
         features = 32
 
->>>>>>> d9f387959f8e86f97649820f3cd603c4ec0b7fe9:my_net.py
         layers = []
         layers.append(nn.Conv2d(in_channels=downsampled_channels, out_channels=features, kernel_size=kernel_size, padding=padding))
         layers.append(nn.ReLU(inplace=True))
